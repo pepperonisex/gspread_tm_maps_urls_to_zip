@@ -4,6 +4,7 @@ import os
 import asyncio
 import aiohttp
 import aiofiles
+import validators
 from zipfile import ZipFile
 from datetime import datetime, timedelta
 
@@ -48,9 +49,12 @@ def get_urls_from_sheet():
     for range_ in ranges:
         cell_list = worksheet.range(range_)
         for cell in cell_list:
-            if cell.value.strip():
-                urls.append(cell.value)
-    print(f"Total URLs retrieved: {len(urls)}")
+            url = cell.value.strip()
+            if url and validators.url(url):
+                urls.append(url)
+            else:
+                print(f"Invalid or empty URL skipped: {url}")
+    print(f"Total valid URLs retrieved: {len(urls)}")
     return urls
 
 async def download_file(session, url):
@@ -58,7 +62,11 @@ async def download_file(session, url):
         print(f"Starting download: {url}")
         async with session.get(url) as response:
             response.raise_for_status()
-            filename = url.split('/')[-1]
+            content_disposition = response.headers.get('Content-Disposition')
+            if content_disposition:
+                filename = content_disposition.split('filename=')[-1].strip('"')
+            else:
+                filename = url.split('/')[-1]
             save_path = os.path.join("downloads", filename)
             async with aiofiles.open(save_path, 'wb') as file:
                 content = await response.read()
